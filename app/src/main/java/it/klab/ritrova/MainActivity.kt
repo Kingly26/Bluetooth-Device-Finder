@@ -13,8 +13,18 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sin
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -150,7 +160,7 @@ private enum class Filter(val label: String) { ALL("Tutti"), HEAD("Cuffie"), PC(
 @Composable
 private fun DeviceList(all: List<BtDevice>, now: Long, onPick: (BtDevice) -> Unit) {
     var filter by remember { mutableStateOf(Filter.ALL) }
-    var showUnnamed by remember { mutableStateOf(false) }
+    var showUnnamed by remember { mutableStateOf(true) }
 
     val filtered = all.filter {
         (when (filter) {
@@ -171,6 +181,9 @@ private fun DeviceList(all: List<BtDevice>, now: Long, onPick: (BtDevice) -> Uni
             Spacer(Modifier.width(6.dp))
             Text("${all.count { now - it.lastSeen < 15_000 }} in zona", color = Muted, fontSize = 13.sp)
         }
+        RadarOverview(filtered.filter { now - it.lastSeen < 15_000 && it.smooth != null }, onPick)
+        Text("Ogni punto è un dispositivo: più è vicino al centro, più è vicino a te. Tocca un punto o la lista per inseguirlo.",
+            color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Filter.entries.forEach { f ->
                 FilterChip(selected = filter == f, onClick = { filter = f }, label = { Text(f.label) })
@@ -192,6 +205,44 @@ private fun DeviceList(all: List<BtDevice>, now: Long, onPick: (BtDevice) -> Uni
     }
 }
 
+/** Posizione del punto: angolo fisso (da indirizzo, la direzione reale non è misurabile), raggio dal segnale. */
+private fun blipPos(d: BtDevice, c: Offset, r: Float): Offset {
+    val a = (d.address.hashCode() and 0xFFFF) / 65535.0 * 2 * Math.PI
+    val rad = r * (0.10f + 0.85f * (1f - d.proximity.toFloat()))
+    return Offset(c.x + rad * cos(a).toFloat(), c.y + rad * sin(a).toFloat())
+}
+
+@Composable
+private fun RadarOverview(devs: List<BtDevice>, onPick: (BtDevice) -> Unit) {
+    val sweep by rememberInfiniteTransition(label = "sweep").animateFloat(
+        0f, 360f, infiniteRepeatable(tween(3200, easing = LinearEasing), RepeatMode.Restart), label = "sw",
+    )
+    val current by rememberUpdatedState(devs)
+    Canvas(
+        Modifier.fillMaxWidth().height(300.dp).padding(horizontal = 12.dp).pointerInput(Unit) {
+            detectTapGestures { off ->
+                val c = Offset(size.width / 2f, size.height / 2f)
+                val r = min(size.width, size.height) / 2f
+                val hit = current.minByOrNull { (blipPos(it, c, r) - off).getDistance() }
+                if (hit != null && (blipPos(hit, c, r) - off).getDistance() < 56.dp.toPx()) onPick(hit)
+            }
+        },
+    ) {
+        val c = Offset(size.width / 2f, size.height / 2f)
+        val r = min(size.width, size.height) / 2f
+        for (i in 1..4) drawCircle(Color(0xFF26313B), r * i / 4, c, style = Stroke(2f))
+        val rad = Math.toRadians(sweep.toDouble())
+        drawLine(Accent.copy(alpha = 0.6f), c, Offset(c.x + r * cos(rad).toFloat(), c.y + r * sin(rad).toFloat()), 4f)
+        for (d in devs) {
+            val col = lerp(Cold, Hot, d.proximity.toFloat())
+            val p = blipPos(d, c, r)
+            drawCircle(col.copy(alpha = 0.25f), 20f, p)
+            drawCircle(col, 10f, p)
+        }
+        drawCircle(Color.White, 8f, c)
+    }
+}
+
 private fun androidx.compose.foundation.lazy.LazyListScope.section(title: String, list: List<BtDevice>, now: Long, onPick: (BtDevice) -> Unit) {
     if (list.isEmpty()) return
     item { Text(title.uppercase(), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)) }
@@ -200,6 +251,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.section(title: String
 
 private fun iconFor(k: Kind): ImageVector = when (k) {
     Kind.HEADPHONES -> Icons.Default.Headphones
+    Kind.SPEAKER -> Icons.Default.Speaker
     Kind.COMPUTER -> Icons.Default.Computer
     Kind.PHONE -> Icons.Default.Smartphone
     Kind.WATCH -> Icons.Default.Watch
@@ -347,7 +399,7 @@ private fun Tracker(d: BtDevice, now: Long, scanner: BtScanner, sounder: Sounder
             Stat("Via", listOfNotNull("BLE".takeIf { d.viaBle }, "Classic".takeIf { d.viaClassic }).joinToString("+").ifEmpty { "—" })
         }
 
-        if (d.connected && d.kind != Kind.COMPUTER && d.kind != Kind.PHONE) {
+        if (d.audioConnected) {
             Button(
                 onClick = {
                     if (ringing) { sounder.stopRing(); ringing = false }
@@ -399,7 +451,7 @@ private fun Tips(d: BtDevice, fresh: Boolean) {
     val tips = buildList {
         add("Gira lentamente su te stesso: il tuo corpo blocca il segnale, quindi la direzione in cui è più debole è quella alle tue spalle.")
         add("Muoviti di 2–3 passi e aspetta un paio di secondi: il valore filtrato reagisce con un po' di ritardo ma è molto più stabile.")
-        if (d.connected) add("Le cuffie connesse di solito non trasmettono pubblicità BLE: usa \"Fai suonare\" e cerca a orecchio.")
+        if (d.audioConnected) add("Le cuffie connesse di solito non trasmettono pubblicità BLE: usa \"Fai suonare\" e cerca a orecchio.")
         if (!fresh && d.kind == Kind.HEADPHONES) add("Molte cuffie trasmettono solo quando sono fuori dalla custodia o con la custodia aperta. Se sono scariche non c'è segnale.")
         if (!fresh && d.kind == Kind.COMPUTER) add("Il PC deve avere il Bluetooth acceso; su Windows apri Impostazioni › Bluetooth per renderlo visibile, su Linux usa `bluetoothctl discoverable on`.")
     }

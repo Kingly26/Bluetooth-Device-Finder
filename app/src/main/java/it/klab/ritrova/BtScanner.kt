@@ -21,7 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.math.pow
 
-enum class Kind { HEADPHONES, COMPUTER, PHONE, WATCH, TV, OTHER }
+enum class Kind { HEADPHONES, SPEAKER, COMPUTER, PHONE, WATCH, TV, OTHER }
 
 /** Filtro di Kalman 1D: toglie il "rumore" dell'RSSI, che salta facilmente di ±8 dBm. */
 class Kalman(private val q: Double = 0.35, private val r: Double = 9.0) {
@@ -47,11 +47,16 @@ data class BtDevice(
     val lastSeen: Long,          // 0 = mai visto in questa sessione
     val bonded: Boolean,
     val connected: Boolean,
+    val audioConnected: Boolean, // connesso come cuffie/vivavoce: l'unico caso in cui si può far suonare
+    val vendor: String?,         // produttore dedotto dai dati BLE (utile per i dispositivi senza nome)
     val viaBle: Boolean,
     val viaClassic: Boolean,
     val history: List<Pair<Long, Double>> = emptyList(),
 ) {
-    val label: String get() = name?.takeIf { it.isNotBlank() } ?: "Sconosciuto"
+    val label: String
+        get() = name?.takeIf { it.isNotBlank() }
+            ?: vendor?.let { "$it (senza nome)" }
+            ?: "Dispositivo sconosciuto"
 
     /** 0 = lontanissimo/assente, 1 = praticamente attaccato. */
     val proximity: Double
@@ -93,6 +98,7 @@ class BtScanner(private val ctx: Context) {
     @Volatile var classicEnabled = true
 
     private var connectedAddrs = emptySet<String>()
+    private var audioAddrs = emptySet<String>()
     private val proxies = HashMap<Int, BluetoothProfile>()
 
     val isEnabled: Boolean get() = adapter?.isEnabled == true
@@ -103,7 +109,9 @@ class BtScanner(private val ctx: Context) {
             val tx = result.txPower.takeIf { it != ScanResult.TX_POWER_NOT_PRESENT }
                 ?: result.scanRecord?.txPowerLevel?.takeIf { it != Int.MIN_VALUE }
             val name = result.scanRecord?.deviceName ?: safeName(result.device)
-            onSample(result.device, name, result.rssi, tx, ble = true)
+            val md = result.scanRecord?.manufacturerSpecificData
+            val vendor = if (md != null && md.size() > 0) vendorName(md.keyAt(0)) else null
+            onSample(result.device, name, result.rssi, tx, ble = true, vendor = vendor)
         }
         override fun onBatchScanResults(results: MutableList<ScanResult>) {
             results.forEach { onScanResult(0, it) }
@@ -205,28 +213,60 @@ class BtScanner(private val ctx: Context) {
         if (Build.VERSION.SDK_INT >= 30) d.alias ?: d.name else d.name
     }.getOrNull()
 
+    private fun vendorName(id: Int): String? = when (id) {
+        0x004C -> "Apple"
+        0x0006 -> "Microsoft"
+        0x0075 -> "Samsung"
+        0x00E0 -> "Google"
+        0x0087 -> "Garmin"
+        0x012D -> "Sony"
+        0x009E -> "Bose"
+        0x038F -> "Xiaomi"
+        0x027D -> "Huawei"
+        else -> null
+    }
+
+    /** Parole corte (<=4 lettere) solo come parola intera, per evitare "tv" dentro "activity" ecc. */
+    private fun hasWord(n: String, words: List<String>): Boolean {
+        val tokens = n.split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }
+        return words.any { w -> if (w.length <= 4) w in tokens else w in n }
+    }
+
     private fun kindOf(d: BluetoothDevice, name: String?): Kind {
-        val major = runCatching { d.bluetoothClass?.majorDeviceClass }.getOrNull()
-        when (major) {
-            BluetoothClass.Device.Major.AUDIO_VIDEO -> return Kind.HEADPHONES
+        val cls = runCatching { d.bluetoothClass }.getOrNull()
+        when (cls?.majorDeviceClass) {
+            BluetoothClass.Device.Major.AUDIO_VIDEO -> return when (cls.deviceClass) {
+                BluetoothClass.Device.AUDIO_VIDEO_WEARABLE_HEADSET,
+                BluetoothClass.Device.AUDIO_VIDEO_HEADPHONES,
+                BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE -> Kind.HEADPHONES
+                BluetoothClass.Device.AUDIO_VIDEO_LOUDSPEAKER,
+                BluetoothClass.Device.AUDIO_VIDEO_PORTABLE_AUDIO,
+                BluetoothClass.Device.AUDIO_VIDEO_HIFI_AUDIO,
+                BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO -> Kind.SPEAKER
+                BluetoothClass.Device.AUDIO_VIDEO_VIDEO_MONITOR,
+                BluetoothClass.Device.AUDIO_VIDEO_VIDEO_DISPLAY_AND_LOUDSPEAKER,
+                BluetoothClass.Device.AUDIO_VIDEO_SET_TOP_BOX -> Kind.TV
+                else -> Kind.OTHER
+            }
             BluetoothClass.Device.Major.COMPUTER -> return Kind.COMPUTER
             BluetoothClass.Device.Major.PHONE -> return Kind.PHONE
             BluetoothClass.Device.Major.WEARABLE -> return Kind.WATCH
         }
         val n = name?.lowercase() ?: return Kind.OTHER
         return when {
-            listOf("bud", "pods", "headphone", "earphone", "wh-", "wf-", "jbl", "airpod", "soundcore",
-                "beats", "bose", "sennheiser", "cuffie", "freebuds", "galaxy buds", "pixel buds", "tws").any { it in n } -> Kind.HEADPHONES
-            listOf("pc", "laptop", "desktop", "macbook", "imac", "thinkpad", "-win", "windows", "linux", "ubuntu", "fedora").any { it in n } -> Kind.COMPUTER
-            listOf("phone", "pixel", "galaxy", "iphone", "redmi", "xiaomi", "oneplus", "moto").any { it in n } -> Kind.PHONE
-            listOf("watch", "band", "fit").any { it in n } -> Kind.WATCH
-            listOf("tv", "bravia", "chromecast", "fire").any { it in n } -> Kind.TV
+            hasWord(n, listOf("buds", "bud", "pods", "airpods", "headphones", "headphone", "earphones", "earbuds", "headset",
+                "wh-1000", "wf-1000", "soundcore", "freebuds", "cuffie", "tws", "jabra", "sennheiser")) -> Kind.HEADPHONES
+            hasWord(n, listOf("speaker", "soundbar", "boombox", "megaboom", "flip", "charge", "casse")) -> Kind.SPEAKER
+            hasWord(n, listOf("laptop", "desktop", "macbook", "imac", "thinkpad", "pc", "windows", "ubuntu", "fedora")) -> Kind.COMPUTER
+            hasWord(n, listOf("iphone", "pixel", "galaxy", "phone", "redmi", "xiaomi", "oneplus")) -> Kind.PHONE
+            hasWord(n, listOf("watch", "band", "fitbit", "garmin")) -> Kind.WATCH
+            hasWord(n, listOf("tv", "bravia", "chromecast", "firetv")) -> Kind.TV
             else -> Kind.OTHER
         }
     }
 
     @Synchronized
-    private fun onSample(dev: BluetoothDevice, name: String?, rssi: Int, tx: Int?, ble: Boolean) {
+    private fun onSample(dev: BluetoothDevice, name: String?, rssi: Int, tx: Int?, ble: Boolean, vendor: String? = null) {
         val addr = dev.address
         val now = System.currentTimeMillis()
         val s = filters.getOrPut(addr) { Kalman() }.update(rssi.toDouble())
@@ -244,6 +284,8 @@ class BtScanner(private val ctx: Context) {
             lastSeen = now,
             bonded = bonded,
             connected = addr in connectedAddrs,
+            audioConnected = addr in audioAddrs,
+            vendor = vendor ?: old?.vendor,
             viaBle = ble || old?.viaBle == true,
             viaClassic = !ble || old?.viaClassic == true,
             history = hist,
@@ -259,20 +301,29 @@ class BtScanner(private val ctx: Context) {
             val old = map[d.address]
             val name = safeName(d)
             map[d.address] = if (old != null)
-                old.copy(bonded = true, name = name ?: old.name, connected = d.address in connectedAddrs)
+                old.copy(bonded = true, name = name ?: old.name, connected = d.address in connectedAddrs,
+                    audioConnected = d.address in audioAddrs)
             else BtDevice(d.address, name, kindOf(d, name), null, null, null, 0, true,
-                    d.address in connectedAddrs, viaBle = false, viaClassic = false)
+                    d.address in connectedAddrs, d.address in audioAddrs, null, viaBle = false, viaClassic = false)
         }
         _devices.value = map
     }
 
     @Synchronized
     private fun refreshConnected() {
-        val set = HashSet<String>()
-        proxies.values.forEach { p -> runCatching { p.connectedDevices.forEach { set += it.address } } }
+        val audio = HashSet<String>()
+        proxies.values.forEach { p -> runCatching { p.connectedDevices.forEach { audio += it.address } } }
+        val set = HashSet<String>(audio)
         runCatching { manager?.getConnectedDevices(BluetoothProfile.GATT)?.forEach { set += it.address } }
         connectedAddrs = set
-        _devices.value = _devices.value.mapValues { (a, d) -> d.copy(connected = a in set) }
+        audioAddrs = audio
+        _devices.value = _devices.value.mapValues { (a, d) ->
+            d.copy(
+                connected = a in set,
+                audioConnected = a in audio,
+                kind = if (d.kind == Kind.OTHER && a in audio) Kind.HEADPHONES else d.kind,
+            )
+        }
     }
 
     /** Rimuove i dispositivi non più visti da 2 minuti (tranne associati). */
