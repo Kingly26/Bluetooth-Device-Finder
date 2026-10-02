@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -94,6 +95,7 @@ class MainActivity : ComponentActivity() {
         sounder = Sounder(applicationContext)
         compass = Compass(applicationContext)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        volumeControlStream = AudioManager.STREAM_MUSIC // i tasti volume regolano il bip
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Bg, surface = Card)) {
                 Surface(Modifier.fillMaxSize(), color = Bg) {
@@ -177,21 +179,10 @@ private fun Setup(scanner: BtScanner, hasPerms: () -> Boolean, onReady: () -> Un
 }
 
 // ---------------------------------------------------------------- Lista
-private enum class Filter(val label: String) { ALL("Tutti"), HEAD("Audio"), PC("PC"), PHONE("Telefoni") }
-
 @Composable
 private fun DeviceList(all: List<BtDevice>, now: Long, locationOn: Boolean, onPick: (BtDevice) -> Unit) {
     val ctx = LocalContext.current
-    var filter by remember { mutableStateOf(Filter.ALL) }
-
-    val filtered = all.filter {
-        when (filter) {
-            Filter.ALL -> true
-            Filter.HEAD -> it.kind == Kind.HEADPHONES || it.kind == Kind.SPEAKER
-            Filter.PC -> it.kind == Kind.COMPUTER
-            Filter.PHONE -> it.kind == Kind.PHONE
-        }
-    }
+    val filtered = all
     fun fresh(d: BtDevice) = now - d.lastSeen < 15_000
     val live = filtered.filter { fresh(it) }.sortedByDescending { it.smooth ?: -200.0 }
     val known = filtered.filter { !fresh(it) && (it.bonded || it.connected) }.sortedByDescending { it.connected }
@@ -212,11 +203,6 @@ private fun DeviceList(all: List<BtDevice>, now: Long, locationOn: Boolean, onPi
             Text("La posizione del telefono è spenta: Android non mostra i dispositivi Bluetooth finché non la accendi.",
                 color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
             TextButton(onClick = { ctx.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }) { Text("Accendi") }
-        }
-        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Filter.entries.forEach { f ->
-                FilterChip(selected = filter == f, onClick = { filter = f }, label = { Text(f.label) })
-            }
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             section("Rilevati ora — dal più vicino", live, now, onPick)
@@ -366,9 +352,6 @@ private fun Tracker(d: BtDevice, now: Long, scanner: BtScanner, sounder: Sounder
             Icon(iconFor(d.kind), null, tint = Accent)
             Spacer(Modifier.width(8.dp))
             Text(d.label, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
-            IconButton(onClick = { beepOn = !beepOn }) {
-                Icon(if (beepOn) Icons.Default.VolumeUp else Icons.Default.VolumeOff, "Bip", tint = Color.White)
-            }
         }
 
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.Bottom) {
@@ -427,6 +410,21 @@ private fun Tracker(d: BtDevice, now: Long, scanner: BtScanner, sounder: Sounder
             if (ringError) Text("Nessuna uscita audio Bluetooth attiva.", color = Hot, fontSize = 13.sp)
             Spacer(Modifier.height(10.dp))
         }
+
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Card)
+                .clickable { beepOn = !beepOn }.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(if (beepOn) Icons.Default.VolumeUp else Icons.Default.VolumeOff, null, tint = if (beepOn) Accent else Muted)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Bip di avvicinamento", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Più rapido quando ti avvicini. Volume: tasti del telefono.", color = Muted, fontSize = 12.sp)
+            }
+            Switch(checked = beepOn, onCheckedChange = { beepOn = it })
+        }
+        Spacer(Modifier.height(10.dp))
 
         Tips(d, fresh)
         Spacer(Modifier.height(32.dp))

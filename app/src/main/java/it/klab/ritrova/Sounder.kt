@@ -17,7 +17,7 @@ import kotlin.math.sin
 /** Bip "contatore Geiger" sul telefono + suoneria da mandare alle cuffie connesse. */
 class Sounder(private val ctx: Context) {
     private val audio = ctx.getSystemService(AudioManager::class.java)
-    private val tone = runCatching { ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90) }.getOrNull()
+    private val tone = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 90) }.getOrNull()
     private val vibrator: Vibrator? =
         if (Build.VERSION.SDK_INT >= 31) ctx.getSystemService(VibratorManager::class.java)?.defaultVibrator
         else @Suppress("DEPRECATION") ctx.getSystemService(Vibrator::class.java)
