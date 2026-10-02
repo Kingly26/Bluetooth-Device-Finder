@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothClass
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.ScanCallback
@@ -150,6 +152,50 @@ class BtScanner(private val ctx: Context) {
         override fun onServiceDisconnected(profile: Int) { proxies.remove(profile) }
     }
 
+    // ---------- Inseguimento diretto (GATT) ----------
+    // I dispositivi associati spesso non si pubblicizzano: apro un collegamento BLE e leggo l'RSSI da lì.
+    private var trackAddr: String? = null
+    private var gatt: BluetoothGatt? = null
+    private val rssiPoll = object : Runnable {
+        override fun run() {
+            runCatching { gatt?.readRemoteRssi() }
+            main.postDelayed(this, 400)
+        }
+    }
+    private val gattCb = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(g: BluetoothGatt, status: Int, newState: Int) {
+            main.removeCallbacks(rssiPoll)
+            if (newState == BluetoothProfile.STATE_CONNECTED) main.post(rssiPoll)
+        }
+        override fun onReadRemoteRssi(g: BluetoothGatt, rssi: Int, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS) onSample(g.device, safeName(g.device), rssi, null, ble = true)
+        }
+    }
+
+    fun track(address: String) {
+        untrack()
+        trackAddr = address
+        if (_running.value) openGatt()
+    }
+
+    fun untrack() {
+        trackAddr = null
+        closeGatt()
+    }
+
+    private fun openGatt() {
+        val a = trackAddr ?: return
+        val dev = runCatching { adapter?.getRemoteDevice(a) }.getOrNull() ?: return
+        // autoConnect: si collega appena il dispositivo entra in portata, senza timeout
+        gatt = runCatching { dev.connectGatt(ctx, true, gattCb, BluetoothDevice.TRANSPORT_LE) }.getOrNull()
+    }
+
+    private fun closeGatt() {
+        main.removeCallbacks(rssiPoll)
+        runCatching { gatt?.disconnect(); gatt?.close() }
+        gatt = null
+    }
+
     private val refresher = object : Runnable {
         override fun run() {
             refreshConnected()
@@ -172,6 +218,7 @@ class BtScanner(private val ctx: Context) {
         loadBonded()
         startBle()
         startClassic()
+        openGatt()
         main.post(refresher)
     }
 
@@ -179,6 +226,7 @@ class BtScanner(private val ctx: Context) {
         if (!_running.value) return
         _running.value = false
         main.removeCallbacksAndMessages(null)
+        closeGatt()
         runCatching { adapter?.bluetoothLeScanner?.stopScan(bleCallback) }
         runCatching { adapter?.cancelDiscovery() }
         runCatching { ctx.unregisterReceiver(receiver) }
