@@ -159,7 +159,7 @@ class BtScanner(private val ctx: Context) {
             addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
         })
         listOf(BluetoothProfile.A2DP, BluetoothProfile.HEADSET).forEach {
-            runCatching { adapter.getProfileProxy(ctx, profileListener, it) }
+            runCatching { adapter?.getProfileProxy(ctx, profileListener, it) }
         }
         loadBonded()
         startBle()
