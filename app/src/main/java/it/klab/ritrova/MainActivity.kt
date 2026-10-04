@@ -158,7 +158,7 @@ private fun Setup(scanner: BtScanner, hasPerms: () -> Boolean, onReady: () -> Un
     ) {
         Icon(Icons.Default.Radar, null, tint = Accent, modifier = Modifier.size(72.dp))
         Spacer(Modifier.height(16.dp))
-        Text("Ritrova", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text("Bluetooth Device Finder", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Spacer(Modifier.height(8.dp))
         Text(
             if (!granted) "Servono due permessi: \"Dispositivi nelle vicinanze\" e \"Posizione\" (scegli Precisa). " +
@@ -190,7 +190,7 @@ private fun DeviceList(all: List<BtDevice>, now: Long, locationOn: Boolean, onPi
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 40.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Ritrova", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+            Text("BT Finder", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
             PulseDot()
             Spacer(Modifier.width(6.dp))
             Text("${all.count { fresh(it) }} rilevati", color = Muted, fontSize = 13.sp)

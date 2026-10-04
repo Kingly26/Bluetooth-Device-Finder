@@ -25,5 +25,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Ritrova-apk
+          name: Bluetooth-Device-Finder-apk
           path: app/build/outputs/apk/release/*.apk

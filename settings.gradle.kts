@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Ritrova"
+rootProject.name = "Bluetooth-Device-Finder"
 include(":app")

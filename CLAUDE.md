@@ -1,4 +1,4 @@
-# Ritrova (Bluetooth Finder) — contesto per Claude Code
+# Bluetooth-Device-Finder (sul telefono: BT Finder) — contesto per Claude Code
 
 Rispondi sempre in **italiano**. L'utente lavora **solo da smartphone (Google Pixel)**, senza PC:
 niente comandi da far eseguire in locale, niente Android Studio. Tutto passa da commit + GitHub Actions.
@@ -14,7 +14,7 @@ con maggiore precisione possibile".
 ## Stato attuale
 - Codice scritto ma **mai compilato** (nella sessione di origine l'SDK Android non era scaricabile).
   → Primo compito: far passare la build su GitHub Actions e correggere gli errori di compilazione.
-- Repo: `Kingly26/Bluetooth-Finder-claude` (privata). Caricata a mano dal telefono: **verificare che
+- Repo: `Kingly26/Bluetooth-Device-Finder` (pubblica). Caricata a mano dal telefono: **verificare che
   la struttura sia corretta** (`app/`, `settings.gradle.kts`, ecc. alla radice, non dentro `ritrova/`)
   e che esista `.github/workflows/build.yml` (le cartelle col punto spesso saltano negli upload da mobile).
 - Non c'è Gradle wrapper: il workflow installa Gradle 8.14.3 con `gradle/actions/setup-gradle`.
@@ -24,7 +24,7 @@ con maggiore precisione possibile".
 - Kotlin 2.1.20, Jetpack Compose (BOM 2024.12.01), Material3, AGP 8.9.1
 - minSdk 26, targetSdk/compileSdk 35, Java 17
 - Package: `it.klab.ritrova`
-- APK release firmato con chiave debug (installabile direttamente). Artifact Actions: `Ritrova-apk`.
+- APK release firmato con chiave debug (installabile direttamente). Artifact Actions: `Bluetooth-Device-Finder-apk`.
 
 ## File
 - `BtScanner.kt` — scansione BLE (LOW_LATENCY, MATCH_MODE_AGGRESSIVE) + discovery classica in loop,
@@ -55,4 +55,4 @@ con maggiore precisione possibile".
 ## Modo di lavorare
 - Dopo ogni modifica: commit su `main`, controllare l'esito di GitHub Actions, correggere finché è verde.
 - Messaggi di commit brevi in italiano.
-- Spiegare all'utente come scaricare l'APK: Actions → ultima esecuzione → Artifacts → Ritrova-apk.
+- Spiegare all'utente come scaricare l'APK: Actions → ultima esecuzione → Artifacts → Bluetooth-Device-Finder-apk.
