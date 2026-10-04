@@ -103,7 +103,42 @@ class BtScanner(private val ctx: Context) {
     private var audioAddrs = emptySet<String>()
     private val proxies = HashMap<Int, BluetoothProfile>()
 
-    val isEnabled: Boolean get() = adapter?.isEnabled == true
+    val isEnabled: Boolean get() = demo || adapter?.isEnabled == true
+
+    // ---------- Demo (solo emulatore) ----------
+    // L'emulatore non ha Bluetooth reale: genero dispositivi finti per poter provare l'interfaccia.
+    val demo: Boolean = Build.HARDWARE.contains("ranchu") || Build.FINGERPRINT.contains("generic")
+    /** Direzione attuale del telefono, per simulare un segnale più forte quando si guarda l'oggetto. */
+    var demoHeading: () -> Float? = { null }
+
+    private class Fake(val addr: String, val name: String?, val vendor: String?, val kind: Kind,
+                       val bearing: Double, val base: Double, val bonded: Boolean, val audio: Boolean)
+    private val fakes = listOf(
+        Fake("AA:BB:CC:00:00:01", "Pixel Buds Pro", "Google", Kind.HEADPHONES, 40.0, -58.0, true, true),
+        Fake("AA:BB:CC:00:00:02", "DESKTOP-K26", null, Kind.COMPUTER, 300.0, -52.0, true, false),
+        Fake("AA:BB:CC:00:00:03", "WH-1000XM4", "Sony", Kind.HEADPHONES, 200.0, -72.0, false, false),
+        Fake("AA:BB:CC:00:00:04", "Galaxy Watch6", "Samsung", Kind.WATCH, 90.0, -68.0, false, false),
+        Fake("AA:BB:CC:00:00:05", null, "Apple", Kind.OTHER, 120.0, -80.0, false, false),
+        Fake("AA:BB:CC:00:00:06", "LG TV", null, Kind.TV, 250.0, -86.0, false, false),
+        Fake("AA:BB:CC:00:00:07", null, null, Kind.OTHER, 10.0, -92.0, false, false),
+    )
+    private val demoLoop = object : Runnable {
+        override fun run() {
+            val h = demoHeading()
+            val now = System.currentTimeMillis()
+            val map = _devices.value.toMutableMap()
+            for (f in fakes) {
+                val dir = if (h == null) 0.0 else 7.0 * kotlin.math.cos(Math.toRadians(h - f.bearing))
+                val rssi = (f.base + dir + (Math.random() - 0.5) * 6).toInt()
+                val s = filters.getOrPut(f.addr) { Kalman() }.update(rssi.toDouble())
+                val hist = ((map[f.addr]?.history ?: emptyList()) + (now to s)).filter { now - it.first <= 30_000 }
+                map[f.addr] = BtDevice(f.addr, f.name, f.kind, rssi, s, null, now, f.bonded, f.audio, f.audio,
+                    f.vendor, viaBle = true, viaClassic = false, history = hist)
+            }
+            _devices.value = map
+            if (_running.value) main.postDelayed(this, 300)
+        }
+    }
 
     // ---------- BLE ----------
     private val bleCallback = object : ScanCallback() {
@@ -184,6 +219,7 @@ class BtScanner(private val ctx: Context) {
     }
 
     private fun openGatt() {
+        if (demo) return
         val a = trackAddr ?: return
         val dev = runCatching { adapter?.getRemoteDevice(a) }.getOrNull() ?: return
         // autoConnect: si collega appena il dispositivo entra in portata, senza timeout
@@ -205,7 +241,9 @@ class BtScanner(private val ctx: Context) {
     }
 
     fun start() {
-        if (_running.value || adapter == null) return
+        if (_running.value) return
+        if (demo) { _running.value = true; main.post(demoLoop); return }
+        if (adapter == null) return
         _running.value = true
         ctx.registerReceiver(receiver, IntentFilter().apply {
             addAction(BluetoothDevice.ACTION_FOUND)

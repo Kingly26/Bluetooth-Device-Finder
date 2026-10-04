@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
         scanner = BtScanner(applicationContext)
         sounder = Sounder(applicationContext)
         compass = Compass(applicationContext)
+        scanner.demoHeading = { compass.heading.value }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         volumeControlStream = AudioManager.STREAM_MUSIC // i tasti volume regolano il bip
         setContent {
