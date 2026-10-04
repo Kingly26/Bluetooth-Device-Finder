@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest an idea or an improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation where the app falls short today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or extra context
+    validations:
+      required: false
+  - type: checkboxes
+    id: local
+    attributes:
+      label: Project scope
+      options:
+        - label: This idea works fully on the phone, with no server or account (the app is local-only by design).
+          required: false

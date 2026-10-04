@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in the app doesn't work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Bluetooth behaves differently on every phone, so the details below really help.
+        For security problems, please use the private report in the Security tab instead.
+  - type: input
+    id: phone
+    attributes:
+      label: Phone model
+      placeholder: e.g. Google Pixel 8
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android version
+      placeholder: e.g. Android 15
+    validations:
+      required: true
+  - type: input
+    id: target
+    attributes:
+      label: Device you were looking for
+      description: Type and model if you know it, and whether it was paired or connected.
+      placeholder: e.g. Sony WH-1000XM4 headphones, paired and connected
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where is the problem?
+      options:
+        - Device list (device missing or wrong info)
+        - Cone radar / direction
+        - Distance or signal reading
+        - Beep / vibration
+        - Make it ring
+        - Permissions or startup
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, and what the app did.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or other details
+      description: Hide device names and MAC addresses in screenshots if you don't want them public.
+    validations:
+      required: false
