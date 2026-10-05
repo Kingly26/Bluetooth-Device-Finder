@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Default language: English. Translations live in values-xx/strings.xml -->
+    <string name="app_name" translatable="false">BT Finder</string>
+    <string name="app_title" translatable="false">Bluetooth Device Finder</string>
+
+    <!-- Setup -->
+    <string name="setup_perms">Two permissions are needed: \"Nearby devices\" and \"Location\" (choose Precise). Android requires both to see the Bluetooth devices around you. No data leaves your phone.</string>
+    <string name="setup_bt">Turn on Bluetooth to start searching.</string>
+    <string name="btn_grant">Grant permissions</string>
+    <string name="btn_enable_bt">Turn on Bluetooth</string>
+    <string name="btn_open_settings">If the button does nothing: open the app settings</string>
+
+    <!-- Home -->
+    <string name="count_detected">%1$d detected</string>
+    <string name="location_off">Your phone\'s location is off: Android won\'t show Bluetooth devices until you turn it on.</string>
+    <string name="btn_turn_on">Turn on</string>
+    <string name="mode_list">List</string>
+    <string name="mode_radar">Radar</string>
+    <string name="sec_live">Detected now — nearest first</string>
+    <string name="sec_known">Paired, not detected right now</string>
+    <string name="sec_lost">Seen recently</string>
+    <string name="empty_listening">Listening… Turn on or open the object you\'re looking for (earbuds often transmit only when out of their case).</string>
+    <string name="state_connected">connected</string>
+    <string name="state_bonded">paired</string>
+    <string name="unnamed_vendor">%1$s (unnamed)</string>
+    <string name="unknown_device">Unknown device</string>
+
+    <!-- Time -->
+    <string name="ago_never">not detected</string>
+    <string name="ago_now">now</string>
+    <string name="ago_seconds">%1$ds ago</string>
+    <string name="ago_minutes">%1$d min ago</string>
+
+    <!-- Radar overview -->
+    <string name="radar_no_compass">Compass not available: the dots only show distance.</string>
+    <string name="radar_hint">You are at the centre and the green area is in front of you. Turn slowly on the spot: hollow dots become solid once their direction is known.</string>
+    <string name="radar_empty">No devices detected right now.</string>
+    <string name="dir_unknown">direction not known yet</string>
+    <string name="dir_front">in front</string>
+    <string name="dir_behind">behind</string>
+    <string name="dir_right">to the right</string>
+    <string name="dir_left">to the left</string>
+
+    <!-- Tracker -->
+    <string name="back">Back</string>
+    <string name="heat_cold">Cold</string>
+    <string name="heat_warm">Warmer</string>
+    <string name="heat_hot">Hot</string>
+    <string name="heat_here">Right here!</string>
+    <string name="listening">Listening…</string>
+    <string name="track_not_seen">Not detected yet: move closer or turn the object on</string>
+    <string name="track_lost">Signal lost %1$s</string>
+    <string name="track_no_compass">Compass not available: follow hot/cold</string>
+    <string name="track_spin">Turn slowly on the spot to find the direction (%1$d%%)</string>
+    <string name="track_ahead">⬆ Straight ahead</string>
+    <string name="track_behind">⬇ It\'s behind you: turn around</string>
+    <string name="track_right">➡ Turn right %1$d°</string>
+    <string name="track_left">⬅ Turn left %1$d°</string>
+    <string name="trend_closer">▲ Getting closer</string>
+    <string name="trend_away">▼ Moving away</string>
+    <string name="trend_stable">● Signal steady</string>
+    <string name="stat_filtered">Filtered</string>
+    <string name="stat_raw">Raw</string>
+    <string name="stat_via">Via</string>
+    <string name="ring_start">Make it ring</string>
+    <string name="ring_stop">Stop sound</string>
+    <string name="ring_warning">⚠️ It rings at full volume: don\'t do this while wearing the headphones.</string>
+    <string name="ring_error">No active Bluetooth audio output.</string>
+    <string name="beep_title">Proximity beep</string>
+    <string name="beep_desc">Faster as you get closer. Volume: phone buttons.</string>
+
+    <!-- Tips -->
+    <string name="tips_title">Tips</string>
+    <string name="tip_spin">Hold the phone flat in front of your chest and turn slowly on the spot (10–15 seconds): your body shields the signal from behind, so the cone can tell which side is stronger.</string>
+    <string name="tip_walk">Then walk a few metres in the direction shown and turn again: the estimate improves with every turn.</string>
+    <string name="tip_estimate">The direction is an estimate: walls, furniture and reflections can shift it. Distance matters more than angle.</string>
+    <string name="tip_bonded">This is a paired device that isn\'t advertising: I\'m trying a direct connection to read its signal. It only works if the device is on and supports Bluetooth LE.</string>
+    <string name="tip_audio">Connected headphones usually don\'t advertise over BLE: use \"Make it ring\" and search by ear.</string>
+    <string name="tip_headphones">Many earbuds transmit only when out of their case or with the case open. If the battery is flat there is no signal.</string>
+    <string name="tip_pc">The PC must have Bluetooth on; on Windows open Settings › Bluetooth to make it visible.</string>
+</resources>

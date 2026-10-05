@@ -1,4 +1,4 @@
-package it.klab.ritrova
+package io.github.kingly26.btfinder
 
 import android.content.Context
 import android.hardware.Sensor
@@ -26,8 +26,14 @@ class Compass(ctx: Context) : SensorEventListener {
     private var sx = 0.0
     private var sy = 0.0
 
-    fun start() { sensor?.let { sm?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) } }
-    fun stop() { sm?.unregisterListener(this) }
+    // Più schermate usano la bussola: la spengo solo quando l'ultima ha finito.
+    private var users = 0
+    fun start() {
+        if (users++ == 0) sensor?.let { sm?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+    }
+    fun stop() {
+        if (users > 0 && --users == 0) sm?.unregisterListener(this)
+    }
 
     override fun onSensorChanged(e: SensorEvent) {
         SensorManager.getRotationMatrixFromVector(rot, e.values)

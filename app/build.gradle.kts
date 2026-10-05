@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "it.klab.ritrova"
+    namespace = "io.github.kingly26.btfinder"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "it.klab.ritrova"
+        applicationId = "io.github.kingly26.btfinder"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

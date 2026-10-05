@@ -1,4 +1,4 @@
-package it.klab.ritrova
+package io.github.kingly26.btfinder
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -55,11 +55,6 @@ data class BtDevice(
     val viaClassic: Boolean,
     val history: List<Pair<Long, Double>> = emptyList(),
 ) {
-    val label: String
-        get() = name?.takeIf { it.isNotBlank() }
-            ?: vendor?.let { "$it (senza nome)" }
-            ?: "Dispositivo sconosciuto"
-
     /** 0 = lontanissimo/assente, 1 = praticamente attaccato. */
     val proximity: Double
         get() = smooth?.let { ((it + 100.0) / 65.0).coerceIn(0.0, 1.0) } ?: 0.0

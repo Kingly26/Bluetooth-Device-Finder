@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Setup -->
+    <string name="setup_perms">Servono due permessi: \"Dispositivi nelle vicinanze\" e \"Posizione\" (scegli Precisa). Android li richiede entrambi per vedere i dispositivi Bluetooth intorno a te. Nessun dato esce dal telefono.</string>
+    <string name="setup_bt">Accendi il Bluetooth per iniziare la ricerca.</string>
+    <string name="btn_grant">Concedi permessi</string>
+    <string name="btn_enable_bt">Attiva Bluetooth</string>
+    <string name="btn_open_settings">Se il pulsante non fa nulla: apri le impostazioni dell\'app</string>
+
+    <!-- Home -->
+    <string name="count_detected">%1$d rilevati</string>
+    <string name="location_off">La posizione del telefono è spenta: Android non mostra i dispositivi Bluetooth finché non la accendi.</string>
+    <string name="btn_turn_on">Accendi</string>
+    <string name="mode_list">Elenco</string>
+    <string name="mode_radar">Radar</string>
+    <string name="sec_live">Rilevati ora — dal più vicino</string>
+    <string name="sec_known">Associati, non rilevati al momento</string>
+    <string name="sec_lost">Visti poco fa</string>
+    <string name="empty_listening">Sto ascoltando… Accendi o apri l\'oggetto che cerchi (le cuffie spesso trasmettono solo fuori dalla custodia).</string>
+    <string name="state_connected">connesso</string>
+    <string name="state_bonded">associato</string>
+    <string name="unnamed_vendor">%1$s (senza nome)</string>
+    <string name="unknown_device">Dispositivo sconosciuto</string>
+
+    <!-- Time -->
+    <string name="ago_never">non rilevato</string>
+    <string name="ago_now">adesso</string>
+    <string name="ago_seconds">%1$ds fa</string>
+    <string name="ago_minutes">%1$d min fa</string>
+
+    <!-- Radar overview -->
+    <string name="radar_no_compass">Bussola non disponibile: i pallini mostrano solo la distanza.</string>
+    <string name="radar_hint">Tu sei al centro, la zona verde è davanti a te. Fai un giro lento su te stesso: i pallini vuoti diventano pieni quando la direzione è nota.</string>
+    <string name="radar_empty">Nessun dispositivo rilevato in questo momento.</string>
+    <string name="dir_unknown">direzione non ancora nota</string>
+    <string name="dir_front">davanti</string>
+    <string name="dir_behind">dietro</string>
+    <string name="dir_right">a destra</string>
+    <string name="dir_left">a sinistra</string>
+
+    <!-- Tracker -->
+    <string name="back">Indietro</string>
+    <string name="heat_cold">Acqua</string>
+    <string name="heat_warm">Fuochino</string>
+    <string name="heat_hot">Fuoco</string>
+    <string name="heat_here">Ci sei sopra!</string>
+    <string name="listening">In ascolto…</string>
+    <string name="track_not_seen">Non ancora rilevato: avvicinati o accendi l\'oggetto</string>
+    <string name="track_lost">Segnale perso %1$s</string>
+    <string name="track_no_compass">Bussola non disponibile: segui caldo/freddo</string>
+    <string name="track_spin">Fai un giro lento su te stesso per trovare la direzione (%1$d%%)</string>
+    <string name="track_ahead">⬆ Dritto davanti a te</string>
+    <string name="track_behind">⬇ È alle tue spalle: girati</string>
+    <string name="track_right">➡ Gira a destra di %1$d°</string>
+    <string name="track_left">⬅ Gira a sinistra di %1$d°</string>
+    <string name="trend_closer">▲ Ti stai avvicinando</string>
+    <string name="trend_away">▼ Ti stai allontanando</string>
+    <string name="trend_stable">● Segnale stabile</string>
+    <string name="stat_filtered">Filtrato</string>
+    <string name="stat_raw">Grezzo</string>
+    <string name="stat_via">Via</string>
+    <string name="ring_start">Fai suonare</string>
+    <string name="ring_stop">Ferma suono</string>
+    <string name="ring_warning">⚠️ Suona a volume massimo: non farlo con le cuffie indossate.</string>
+    <string name="ring_error">Nessuna uscita audio Bluetooth attiva.</string>
+    <string name="beep_title">Bip di avvicinamento</string>
+    <string name="beep_desc">Più rapido quando ti avvicini. Volume: tasti del telefono.</string>
+
+    <!-- Tips -->
+    <string name="tips_title">Consigli</string>
+    <string name="tip_spin">Tieni il telefono piatto davanti al petto e fai un giro lento su te stesso (10–15 secondi): il tuo corpo scherma il segnale da dietro, così il cono capisce da che parte è più forte.</string>
+    <string name="tip_walk">Poi cammina nella direzione indicata per qualche metro e rifai il giro: a ogni giro la stima migliora.</string>
+    <string name="tip_estimate">La direzione è una stima: muri, mobili e riflessi la possono spostare. La distanza conta più dell\'angolo.</string>
+    <string name="tip_bonded">È un dispositivo associato che non si annuncia: sto provando un collegamento diretto per leggerne il segnale. Funziona solo se è acceso e supporta Bluetooth LE.</string>
+    <string name="tip_audio">Le cuffie connesse di solito non trasmettono pubblicità BLE: usa \"Fai suonare\" e cerca a orecchio.</string>
+    <string name="tip_headphones">Molte cuffie trasmettono solo quando sono fuori dalla custodia o con la custodia aperta. Se sono scariche non c\'è segnale.</string>
+    <string name="tip_pc">Il PC deve avere il Bluetooth acceso; su Windows apri Impostazioni › Bluetooth per renderlo visibile.</string>
+</resources>

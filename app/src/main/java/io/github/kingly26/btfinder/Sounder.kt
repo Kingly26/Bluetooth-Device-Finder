@@ -1,4 +1,4 @@
-package it.klab.ritrova
+package io.github.kingly26.btfinder
 
 import android.content.Context
 import android.media.AudioAttributes

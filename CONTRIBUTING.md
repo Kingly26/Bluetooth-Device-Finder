@@ -46,7 +46,15 @@ The build must be green before a pull request can be merged.
   UI text that promises more precision than the hardware can give.
 - **Test on a real phone** when you touch scanning, sensors or audio, and say which phone you used.
   Emulators don't provide real Bluetooth.
-- Match the style of the surrounding Kotlin code. Code comments and UI strings are currently in Italian.
+- Match the style of the surrounding Kotlin code. Code comments are currently in Italian.
+- **No user-visible text in Kotlin code.** Every string goes in `app/src/main/res/values/strings.xml`
+  (English, the default) and is translated in `values-it/strings.xml`.
+
+### Adding a language
+
+Copy `app/src/main/res/values/strings.xml` to `values-<code>/strings.xml` (for example `values-es` for
+Spanish), translate the text between the tags and keep the `name` attributes and the `%1$d` / `%1$s`
+placeholders unchanged. Strings marked `translatable="false"` must not be copied.
 - Keep new dependencies to a minimum.
 
 ## Licence

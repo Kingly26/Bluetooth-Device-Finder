@@ -1,4 +1,4 @@
-package it.klab.ritrova
+package io.github.kingly26.btfinder
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
@@ -45,7 +45,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -135,14 +141,19 @@ private fun App(
         while (true) { delay(1000); now = System.currentTimeMillis(); if (++n % 15 == 0) scanner.prune() }
     }
 
+    var radarMode by remember { mutableStateOf(false) }
+    // Mappe del segnale per direzione e numeri dei pallini: condivise fra radar generale e ricerca singola.
+    val finders = remember { HashMap<String, DirectionFinder>() }
+    val numbers = remember { HashMap<String, Int>() }
+
     val sel = selected
     if (sel == null) {
-        DeviceList(devices.values.toList(), now, locationOn.value) { selected = it.address }
+        DeviceList(devices.values.toList(), now, locationOn.value, radarMode, { radarMode = it }, compass, finders, numbers) { selected = it.address }
     } else {
         BackHandler { selected = null }
         val d = devices[sel]
         if (d == null) selected = null
-        else Tracker(d, now, scanner, sounder, compass) { selected = null }
+        else Tracker(d, now, scanner, sounder, compass, finders.getOrPut(sel) { DirectionFinder() }) { selected = null }
     }
 }
 
@@ -159,29 +170,28 @@ private fun Setup(scanner: BtScanner, hasPerms: () -> Boolean, onReady: () -> Un
     ) {
         Icon(Icons.Default.Radar, null, tint = Accent, modifier = Modifier.size(72.dp))
         Spacer(Modifier.height(16.dp))
-        Text("Bluetooth Device Finder", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(stringResource(R.string.app_title), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Spacer(Modifier.height(8.dp))
-        Text(
-            if (!granted) "Servono due permessi: \"Dispositivi nelle vicinanze\" e \"Posizione\" (scegli Precisa). " +
-                "Android li richiede entrambi per vedere i dispositivi Bluetooth intorno a te. Nessun dato esce dal telefono."
-            else "Accendi il Bluetooth per iniziare la ricerca.",
-            color = Muted,
-        )
+        Text(stringResource(if (!granted) R.string.setup_perms else R.string.setup_bt), color = Muted)
         Spacer(Modifier.height(24.dp))
         Button(onClick = {
             if (!granted) permLauncher.launch(perms)
             else if (!scanner.isEnabled) btLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
             else onReady()
-        }) { Text(if (!granted) "Concedi permessi" else "Attiva Bluetooth") }
+        }) { Text(stringResource(if (!granted) R.string.btn_grant else R.string.btn_enable_bt)) }
         if (!granted) TextButton(onClick = {
             ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", ctx.packageName, null)))
-        }) { Text("Se il pulsante non fa nulla: apri le impostazioni dell'app") }
+        }) { Text(stringResource(R.string.btn_open_settings)) }
     }
 }
 
 // ---------------------------------------------------------------- Lista
 @Composable
-private fun DeviceList(all: List<BtDevice>, now: Long, locationOn: Boolean, onPick: (BtDevice) -> Unit) {
+private fun DeviceList(
+    all: List<BtDevice>, now: Long, locationOn: Boolean, radarMode: Boolean, onMode: (Boolean) -> Unit,
+    compass: Compass, finders: HashMap<String, DirectionFinder>, numbers: HashMap<String, Int>,
+    onPick: (BtDevice) -> Unit,
+) {
     val ctx = LocalContext.current
     val filtered = all
     fun fresh(d: BtDevice) = now - d.lastSeen < 15_000
@@ -191,29 +201,171 @@ private fun DeviceList(all: List<BtDevice>, now: Long, locationOn: Boolean, onPi
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 40.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("BT Finder", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.app_title), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, modifier = Modifier.weight(1f))
             PulseDot()
             Spacer(Modifier.width(6.dp))
-            Text("${all.count { fresh(it) }} rilevati", color = Muted, fontSize = 13.sp)
+            Text(stringResource(R.string.count_detected, all.count { fresh(it) }), color = Muted, fontSize = 13.sp)
         }
         if (!locationOn) Row(
             Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp))
                 .background(Hot.copy(alpha = 0.18f)).padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("La posizione del telefono è spenta: Android non mostra i dispositivi Bluetooth finché non la accendi.",
-                color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
-            TextButton(onClick = { ctx.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }) { Text("Accendi") }
+            Text(stringResource(R.string.location_off), color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            TextButton(onClick = { ctx.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }) { Text(stringResource(R.string.btn_turn_on)) }
         }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            section("Rilevati ora — dal più vicino", live, now, onPick)
-            section("Associati, non rilevati al momento", known, now, onPick)
-            section("Visti poco fa", lost, now, onPick)
-            if (filtered.isEmpty()) item {
-                Text("Sto ascoltando… Accendi o apri l'oggetto che cerchi (le cuffie spesso trasmettono solo fuori dalla custodia).",
-                    color = Muted, modifier = Modifier.padding(top = 32.dp))
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Card).padding(4.dp),
+        ) {
+            for ((label, value) in listOf(stringResource(R.string.mode_list) to false, stringResource(R.string.mode_radar) to true)) {
+                val on = radarMode == value
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(if (on) Accent else Color.Transparent)
+                        .clickable { onMode(value) }.padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(label, color = if (on) Bg else Muted, fontWeight = FontWeight.SemiBold) }
             }
         }
+        if (radarMode) { RadarAll(live, compass, finders, numbers, onPick); return@Column }
+        val secLive = stringResource(R.string.sec_live)
+        val secKnown = stringResource(R.string.sec_known)
+        val secLost = stringResource(R.string.sec_lost)
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            section(secLive, live, now, onPick)
+            section(secKnown, known, now, onPick)
+            section(secLost, lost, now, onPick)
+            if (filtered.isEmpty()) item {
+                Text(stringResource(R.string.empty_listening), color = Muted, modifier = Modifier.padding(top = 32.dp))
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Radar generale
+private const val TILT = 0.62f // schiacciamento verticale del disco: dà l'effetto "inclinato"
+
+private class Blip(val d: BtDevice, val num: Int, val rel: Float?, val angle: Float, val f: Float)
+
+/** Angolo rispetto a "davanti" + distanza 0..1 -> punto sul disco inclinato. */
+private fun discPos(angle: Float, f: Float, c: Offset, r: Float): Offset {
+    val t = Math.toRadians(angle.toDouble())
+    return Offset(c.x + f * r * sin(t).toFloat(), c.y - f * r * TILT * cos(t).toFloat())
+}
+
+@Composable
+private fun dirWord(rel: Float?): String = stringResource(when {
+    rel == null -> R.string.dir_unknown
+    abs(rel) <= 30f -> R.string.dir_front
+    abs(rel) >= 150f -> R.string.dir_behind
+    rel > 0 -> R.string.dir_right
+    else -> R.string.dir_left
+})
+
+/** Nome da mostrare: quello del dispositivo, altrimenti il produttore, altrimenti "sconosciuto". */
+@Composable
+private fun label(d: BtDevice): String =
+    d.name?.takeIf { it.isNotBlank() }
+        ?: d.vendor?.let { stringResource(R.string.unnamed_vendor, it) }
+        ?: stringResource(R.string.unknown_device)
+
+@Composable
+private fun RadarAll(
+    devs: List<BtDevice>, compass: Compass, finders: HashMap<String, DirectionFinder>,
+    numbers: HashMap<String, Int>, onPick: (BtDevice) -> Unit,
+) {
+    val heading by compass.heading.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        compass.start()
+        onPauseOrDispose { compass.stop() }
+    }
+
+    // Ogni nuova lettura di ogni dispositivo viene abbinata alla direzione attuale del telefono.
+    val fed = remember { HashMap<String, Long>() }
+    val h = heading
+    val nowMs = System.currentTimeMillis()
+    val blips = devs.filter { it.smooth != null }.map { d ->
+        val num = numbers.getOrPut(d.address) { numbers.size + 1 }
+        val finder = finders.getOrPut(d.address) { DirectionFinder() }
+        val r = d.rssi
+        if (h != null && r != null && fed[d.address] != d.lastSeen) {
+            fed[d.address] = d.lastSeen
+            finder.add(h, r.toDouble(), d.lastSeen)
+        }
+        val rel = if (h == null) null else finder.snapshot(nowMs).bearing?.let { wrap180(it - h) }
+        // direzione ignota: angolo fisso qualsiasi, e il pallino resta vuoto
+        val angle = rel ?: (((d.address.hashCode() * -1640531527) ushr 16) / 65535f * 360f)
+        Blip(d, num, rel, angle, 0.14f + 0.80f * (1f - d.proximity.toFloat()))
+    }.sortedBy { it.num }
+
+    val current by rememberUpdatedState(blips)
+    val tm = rememberTextMeasurer()
+    val numStyle = TextStyle(color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+        Canvas(
+            Modifier.fillMaxWidth().height(290.dp).pointerInput(Unit) {
+                detectTapGestures { off ->
+                    val c = Offset(size.width / 2f, size.height / 2f)
+                    val r = min(size.width / 2f, size.height / 2f / TILT) * 0.94f
+                    val hit = current.minByOrNull { (discPos(it.angle, it.f, c, r) - off).getDistance() }
+                    if (hit != null && (discPos(hit.angle, hit.f, c, r) - off).getDistance() < 40.dp.toPx()) onPick(hit.d)
+                }
+            },
+        ) {
+            val c = Offset(size.width / 2f, size.height / 2f)
+            val r = min(size.width / 2f, size.height / 2f / TILT) * 0.94f
+            fun oval(f: Float, color: Color, stroke: Boolean) = drawOval(
+                color, Offset(c.x - r * f, c.y - r * f * TILT), androidx.compose.ui.geometry.Size(2 * r * f, 2 * r * f * TILT),
+                style = if (stroke) Stroke(2f) else androidx.compose.ui.graphics.drawscope.Fill,
+            )
+            oval(1f, Card, false)
+            // settore "davanti a te"
+            val front = Path().apply {
+                moveTo(c.x, c.y)
+                for (a in -25..25 step 5) { val p = discPos(a.toFloat(), 1f, c, r); lineTo(p.x, p.y) }
+                close()
+            }
+            drawPath(front, Accent.copy(alpha = 0.12f))
+            for (f in listOf(0.34f, 0.67f, 1f)) oval(f, Grid, true)
+            drawLine(Grid, discPos(-90f, 1f, c, r), discPos(90f, 1f, c, r), 2f)
+            drawLine(Grid, discPos(0f, 1f, c, r), discPos(180f, 1f, c, r), 2f)
+            drawCircle(Color.White, 9f, c)
+
+            val rad = 13.dp.toPx()
+            // prima i lontani, così i vicini restano sopra
+            for (b in current.sortedByDescending { it.f }) {
+                val p = discPos(b.angle, b.f, c, r)
+                val col = lerp(Cold, Hot, b.d.proximity.toFloat())
+                if (b.rel != null) drawCircle(col, rad, p)
+                else { drawCircle(Bg, rad, p); drawCircle(col, rad, p, style = Stroke(3f)) }
+                val layout = tm.measure(b.num.toString(), numStyle)
+                drawText(layout, topLeft = Offset(p.x - layout.size.width / 2f, p.y - layout.size.height / 2f))
+            }
+        }
+        Text(
+            stringResource(if (h == null) R.string.radar_no_compass else R.string.radar_hint),
+            color = Muted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 6.dp),
+        )
+        if (blips.isEmpty()) Text(stringResource(R.string.radar_empty), color = Muted, modifier = Modifier.padding(top = 24.dp))
+        for (b in blips) {
+            val col = lerp(Cold, Hot, b.d.proximity.toFloat())
+            Row(
+                Modifier.padding(vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Card)
+                    .clickable { onPick(b.d) }.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(34.dp).clip(CircleShape).background(col), contentAlignment = Alignment.Center) {
+                    Text(b.num.toString(), color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(label(b.d), color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text("${dirWord(b.rel)} · ${fmtDist(b.d.distanceM)}", color = Muted, fontSize = 12.sp)
+                }
+                SignalBars(b.d.proximity)
+            }
+        }
+        Spacer(Modifier.height(32.dp))
     }
 }
 
@@ -233,16 +385,21 @@ private fun iconFor(k: Kind): ImageVector = when (k) {
     Kind.OTHER -> Icons.Default.Bluetooth
 }
 
+@Composable
 private fun ago(now: Long, t: Long): String {
-    if (t == 0L) return "non rilevato"
-    val s = (now - t) / 1000
-    return when { s < 3 -> "adesso"; s < 60 -> "${s}s fa"; else -> "${s / 60} min fa" }
+    if (t == 0L) return stringResource(R.string.ago_never)
+    val s = ((now - t) / 1000).toInt()
+    return when {
+        s < 3 -> stringResource(R.string.ago_now)
+        s < 60 -> stringResource(R.string.ago_seconds, s)
+        else -> stringResource(R.string.ago_minutes, s / 60)
+    }
 }
 
 private fun fmtDist(m: Double?): String = when {
     m == null -> "—"
     m < 1 -> "< 1 m"
-    m < 10 -> String.format(Locale.ITALY, "~%.1f m", m)
+    m < 10 -> String.format(Locale.getDefault(), "~%.1f m", m)
     else -> "~${m.toInt()} m"
 }
 
@@ -258,10 +415,12 @@ private fun DeviceRow(d: BtDevice, now: Long, onPick: (BtDevice) -> Unit) {
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(d.label, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(label(d), color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            val state = if (d.connected) stringResource(R.string.state_connected) else if (d.bonded) stringResource(R.string.state_bonded) else null
+            val seen = ago(now, d.lastSeen)
             val extra = buildList {
-                if (d.connected) add("connesso") else if (d.bonded) add("associato")
-                add(ago(now, d.lastSeen))
+                if (state != null) add(state)
+                add(seen)
                 if (fresh) add(fmtDist(d.distanceM))
                 if (fresh) d.smooth?.let { add("${it.toInt()} dBm") }
             }.joinToString(" · ")
@@ -289,17 +448,18 @@ private fun PulseDot() {
 }
 
 // ---------------------------------------------------------------- Ricerca
-private fun heatLabel(p: Double): String = when {
-    p < 0.30 -> "Acqua"
-    p < 0.55 -> "Fuochino"
-    p < 0.80 -> "Fuoco"
-    else -> "Ci sei sopra!"
-}
+@Composable
+private fun heatLabel(p: Double): String = stringResource(when {
+    p < 0.30 -> R.string.heat_cold
+    p < 0.55 -> R.string.heat_warm
+    p < 0.80 -> R.string.heat_hot
+    else -> R.string.heat_here
+})
 
 private const val FOV = 60f // il cono mostra ±60° rispetto a dove punta il telefono
 
 @Composable
-private fun Tracker(d: BtDevice, now: Long, scanner: BtScanner, sounder: Sounder, compass: Compass, onBack: () -> Unit) {
+private fun Tracker(d: BtDevice, now: Long, scanner: BtScanner, sounder: Sounder, compass: Compass, finder: DirectionFinder, onBack: () -> Unit) {
     val fresh = now - d.lastSeen < 6_000
     val p = if (fresh) d.proximity else 0.0
     val animP by animateFloatAsState(p.toFloat(), tween(400), label = "p")
@@ -309,7 +469,6 @@ private fun Tracker(d: BtDevice, now: Long, scanner: BtScanner, sounder: Sounder
     var ringError by remember { mutableStateOf(false) }
 
     val heading by compass.heading.collectAsStateWithLifecycle()
-    val finder = remember(d.address) { DirectionFinder() }
 
     DisposableEffect(d.address) {
         // In ricerca BLE la discovery classica rallenta i campioni: la spengo se non serve.
@@ -349,14 +508,14 @@ private fun Tracker(d: BtDevice, now: Long, scanner: BtScanner, sounder: Sounder
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Row(Modifier.padding(top = 36.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Indietro", tint = Color.White) }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = Color.White) }
             Icon(iconFor(d.kind), null, tint = Accent)
             Spacer(Modifier.width(8.dp))
-            Text(d.label, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+            Text(label(d), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
         }
 
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.Bottom) {
-            Text(if (fresh) heatLabel(p) else "In ascolto…", color = color, fontSize = 30.sp, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
+            Text(if (fresh) heatLabel(p) else stringResource(R.string.listening), color = color, fontSize = 30.sp, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
             if (fresh) Text(fmtDist(d.distanceM), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
         }
 
@@ -364,13 +523,13 @@ private fun Tracker(d: BtDevice, now: Long, scanner: BtScanner, sounder: Sounder
 
         // Direzione
         val dirText = when {
-            !fresh -> if (d.lastSeen == 0L) "Non ancora rilevato: avvicinati o accendi l'oggetto" else "Segnale perso ${ago(now, d.lastSeen)}"
-            heading == null -> "Bussola non disponibile: segui caldo/freddo"
-            rel == null -> "Fai un giro lento su te stesso per trovare la direzione (${(reading.coverage * 100).toInt()}%)"
-            abs(rel) <= 15f -> "⬆ Dritto davanti a te"
-            abs(rel) >= 150f -> "⬇ È alle tue spalle: girati"
-            rel > 0 -> "➡ Gira a destra di ${rel.toInt()}°"
-            else -> "⬅ Gira a sinistra di ${(-rel).toInt()}°"
+            !fresh -> if (d.lastSeen == 0L) stringResource(R.string.track_not_seen) else stringResource(R.string.track_lost, ago(now, d.lastSeen))
+            heading == null -> stringResource(R.string.track_no_compass)
+            rel == null -> stringResource(R.string.track_spin, (reading.coverage * 100).toInt())
+            abs(rel) <= 15f -> stringResource(R.string.track_ahead)
+            abs(rel) >= 150f -> stringResource(R.string.track_behind)
+            rel > 0 -> stringResource(R.string.track_right, rel.toInt())
+            else -> stringResource(R.string.track_left, (-rel).toInt())
         }
         Text(dirText, color = if (rel != null && fresh && abs(rel) <= 15f) Accent else Color.White,
             fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp))
@@ -378,9 +537,9 @@ private fun Tracker(d: BtDevice, now: Long, scanner: BtScanner, sounder: Sounder
         val tr = d.trend
         val trendText = when {
             !fresh -> ""
-            tr > 2.0 -> "▲ Ti stai avvicinando"
-            tr < -2.0 -> "▼ Ti stai allontanando"
-            else -> "● Segnale stabile"
+            tr > 2.0 -> stringResource(R.string.trend_closer)
+            tr < -2.0 -> stringResource(R.string.trend_away)
+            else -> stringResource(R.string.trend_stable)
         }
         Text(trendText, color = if (tr > 2) Accent else if (tr < -2) Hot else Muted, fontSize = 14.sp,
             modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 2.dp))
@@ -389,9 +548,9 @@ private fun Tracker(d: BtDevice, now: Long, scanner: BtScanner, sounder: Sounder
         HistoryGraph(d.history, now, color)
 
         Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Stat("Filtrato", d.smooth?.let { "${it.toInt()} dBm" } ?: "—")
-            Stat("Grezzo", d.rssi?.let { "$it dBm" } ?: "—")
-            Stat("Via", listOfNotNull("BLE".takeIf { d.viaBle }, "Classic".takeIf { d.viaClassic }).joinToString("+").ifEmpty { "—" })
+            Stat(stringResource(R.string.stat_filtered), d.smooth?.let { "${it.toInt()} dBm" } ?: "—")
+            Stat(stringResource(R.string.stat_raw), d.rssi?.let { "$it dBm" } ?: "—")
+            Stat(stringResource(R.string.stat_via),listOfNotNull("BLE".takeIf { d.viaBle }, "Classic".takeIf { d.viaClassic }).joinToString("+").ifEmpty { "—" })
         }
 
         if (d.audioConnected) {
@@ -405,10 +564,10 @@ private fun Tracker(d: BtDevice, now: Long, scanner: BtScanner, sounder: Sounder
             ) {
                 Icon(if (ringing) Icons.Default.Stop else Icons.Default.NotificationsActive, null)
                 Spacer(Modifier.width(8.dp))
-                Text(if (ringing) "Ferma suono" else "Fai suonare", fontSize = 17.sp)
+                Text(stringResource(if (ringing) R.string.ring_stop else R.string.ring_start), fontSize = 17.sp)
             }
-            Text("⚠️ Suona a volume massimo: non farlo con le cuffie indossate.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-            if (ringError) Text("Nessuna uscita audio Bluetooth attiva.", color = Hot, fontSize = 13.sp)
+            Text(stringResource(R.string.ring_warning), color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+            if (ringError) Text(stringResource(R.string.ring_error), color = Hot, fontSize = 13.sp)
             Spacer(Modifier.height(10.dp))
         }
 
@@ -420,8 +579,8 @@ private fun Tracker(d: BtDevice, now: Long, scanner: BtScanner, sounder: Sounder
             Icon(if (beepOn) Icons.Default.VolumeUp else Icons.Default.VolumeOff, null, tint = if (beepOn) Accent else Muted)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("Bip di avvicinamento", color = Color.White, fontWeight = FontWeight.SemiBold)
-                Text("Più rapido quando ti avvicini. Volume: tasti del telefono.", color = Muted, fontSize = 12.sp)
+                Text(stringResource(R.string.beep_title), color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.beep_desc), color = Muted, fontSize = 12.sp)
             }
             Switch(checked = beepOn, onCheckedChange = { beepOn = it })
         }
@@ -547,16 +706,16 @@ private fun HistoryGraph(history: List<Pair<Long, Double>>, now: Long, color: Co
 @Composable
 private fun Tips(d: BtDevice, fresh: Boolean) {
     val tips = buildList {
-        add("Tieni il telefono piatto davanti al petto e fai un giro lento su te stesso (10–15 secondi): il tuo corpo scherma il segnale da dietro, così il cono capisce da che parte è più forte.")
-        add("Poi cammina nella direzione indicata per qualche metro e rifai il giro: a ogni giro la stima migliora.")
-        add("La direzione è una stima: muri, mobili e riflessi la possono spostare. La distanza conta più dell'angolo.")
-        if (d.bonded && !fresh) add("È un dispositivo associato che non si annuncia: sto provando un collegamento diretto per leggerne il segnale. Funziona solo se è acceso e supporta Bluetooth LE.")
-        if (d.audioConnected) add("Le cuffie connesse di solito non trasmettono pubblicità BLE: usa \"Fai suonare\" e cerca a orecchio.")
-        if (!fresh && d.kind == Kind.HEADPHONES) add("Molte cuffie trasmettono solo quando sono fuori dalla custodia o con la custodia aperta. Se sono scariche non c'è segnale.")
-        if (!fresh && d.kind == Kind.COMPUTER) add("Il PC deve avere il Bluetooth acceso; su Windows apri Impostazioni › Bluetooth per renderlo visibile.")
+        add(R.string.tip_spin)
+        add(R.string.tip_walk)
+        add(R.string.tip_estimate)
+        if (d.bonded && !fresh) add(R.string.tip_bonded)
+        if (d.audioConnected) add(R.string.tip_audio)
+        if (!fresh && d.kind == Kind.HEADPHONES) add(R.string.tip_headphones)
+        if (!fresh && d.kind == Kind.COMPUTER) add(R.string.tip_pc)
     }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Card).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Consigli", color = Color.White, fontWeight = FontWeight.SemiBold)
-        tips.forEach { Text("• $it", color = Muted, fontSize = 13.sp) }
+        Text(stringResource(R.string.tips_title), color = Color.White, fontWeight = FontWeight.SemiBold)
+        tips.forEach { Text("• ${stringResource(it)}", color = Muted, fontSize = 13.sp) }
     }
 }
