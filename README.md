@@ -14,16 +14,14 @@ endorsed by Bluetooth SIG.
 
 ## Download
 
-Every push to `main` is built by GitHub Actions.
+**[⬇ Download the latest APK](https://github.com/Kingly26/Bluetooth-Device-Finder/releases/latest/download/Bluetooth-Device-Finder.apk)**
 
-**[➡ Open the list of successful builds](https://github.com/Kingly26/Bluetooth-Device-Finder/actions/workflows/build.yml?query=branch%3Amain+is%3Asuccess)**
+Open the link on your phone and install the file. Android will ask you to allow installing from your
+browser, and Play Protect may warn that the app is unverified because it is not from the Play Store.
+Requires Android 8 or later.
 
-1. Sign in to GitHub (artifacts are only downloadable when logged in).
-2. Open the first run in the list.
-3. At the bottom, under **Artifacts**, download `Bluetooth-Device-Finder-apk`.
-4. Unzip it and install the `.apk` on your phone.
-
-Requires Android 8 or later. Artifacts expire 90 days after the build.
+The APK is rebuilt automatically on every push to `main`. Each build is signed with a different key,
+so to update you need to uninstall the previous version first.
 
 ## Limits
 

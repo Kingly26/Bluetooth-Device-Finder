@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # serve per pubblicare la release
     steps:
       - uses: actions/checkout@v4
 
@@ -28,3 +30,16 @@ jobs:
         with:
           name: Bluetooth-Device-Finder-apk
           path: app/build/outputs/apk/release/*.apk
+
+      # Un'unica release "latest", sostituita a ogni build: dà un link di download fisso all'APK.
+      - name: Pubblica APK come release latest
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/*.apk Bluetooth-Device-Finder.apk
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest Bluetooth-Device-Finder.apk \
+            --title "Latest build" \
+            --notes "Automatic build of commit ${{ github.sha }}." \
+            --target ${{ github.sha }}
