@@ -28,6 +28,10 @@ so to update you need to uninstall the previous version first.
 It only finds devices that are powered on and within Bluetooth range (about 10 m). Distance and
 direction are estimates: walls and reflections shift them.
 
+## Accessibility
+
+See [ACCESSIBILITY.md](ACCESSIBILITY.md) for what works today and the known limitations.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Licensed under the [MIT License](LICENSE).
